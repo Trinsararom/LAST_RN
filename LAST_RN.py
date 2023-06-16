@@ -1,26 +1,31 @@
-import pandas as pd
-import numpy as np
-from datetime import datetime
+# import library
+import pandas as pd #data manipulate
+import streamlit as st #web abb (Dashboard (DB))
+import numpy as np # function (math,arrays)
+from datetime import datetime # handle with time
 import datetime
-import plotly.graph_objects as go
-from openpyxl import load_workbook
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.express as px
-import streamlit as st
-import re
+import altair as alt # visualized (DB)
+from openpyxl import load_workbook # excel
+import matplotlib.pyplot as plt # visualized
+import seaborn as sns # visualized
+import plotly.express as px # ***visualized
+import plotly.graph_objs as go # visualized
+import re # set of strings that matches
+import seaborn as sns # visualized
+import warnings  
+warnings.filterwarnings('ignore') # ignore warning
+import calendar #datetime
 from sklearn.linear_model import LinearRegression
-import warnings
-import calendar
-warnings.filterwarnings('ignore')
 
+# text layout
 st.set_page_config(
     page_title="LAST RN",
     layout = 'wide',
 )
 st.markdown('**LAST 20 RN (AMBER 85)**')
-
+# read file , astype to float64
 all = pd.read_csv('reservations_summary_report (5).csv',thousands=',')
+# convert roomtype
 def convert_room_type(room_type):
   if re.search(r'\bGRAND DELUXE ROOM\b|\bGRAND DELUXE\b|\bGRAND DELUXE DOUBLE ROOM\b|\bGRAND DELUXE ROOM ONLY\b|\bGRAND DOUBLE OR TWIN ROOM\b|\bDOUBLE GRAND DELUXE DOUBLE ROOM\b', room_type):
     return 'GRAND DELUXE'
@@ -34,6 +39,7 @@ def convert_room_type(room_type):
     return 'MIXED'
   else: 
     return 'UNKNOWN'
+# dis count adr
 def apply_discount(channel, adr):
     if channel == 'Booking.com':
       return adr * 0.82
@@ -41,17 +47,19 @@ def apply_discount(channel, adr):
       return adr * 0.80
     else:
       return adr
-
+# if multi room convert to MIXED ROOM
 def clean_room_type(room_type):
     if ' X '  in room_type:
         room_type = 'MIXED ROOM'
     return room_type
 
+# discount ABF
 def calculate_adr_per_rn_abf(row):
     if row['RO/ABF'] == 'ABF':
       return row['ADR'] - 260
     else:
       return row['ADR']
+# To find NRF/F
 def convert_RF(room_type):
       if re.search(r'\bNON REFUNDABLE\b|\bไม่สามารถคืนเงินจอง\b|\bNON REFUND\b|\bNON-REFUNDABLE\b|\bNRF\b', room_type):
             return 'NRF'
@@ -61,7 +69,7 @@ def convert_RF(room_type):
             return 'UNKNOWN'
       else:
             return 'Flexible'
-
+# To find ABF/RO
 def convert_ABF(room_type):
       if re.search(r'\bBREAKFAST\b|\bWITH BREAKFAST\b|\bBREAKFAST INCLUDED\b', room_type):
             return 'ABF'
@@ -75,77 +83,84 @@ def convert_ABF(room_type):
             return 'RO'
 
 def perform(all): 
-                all1 = all[['Booking reference'
-                            ,'Guest names'
-                            ,'Check-in'
-                            ,'Check-out'
-                            ,'Channel'
-                            ,'Room'
-                            ,'Booked-on date'
-                            ,'Total price']]
-                all1 = all1.dropna()
+    all1 = all[['Booking reference'
+                ,'Guest names'
+                ,'Check-in'
+                ,'Check-out'
+                ,'Channel'
+                ,'Room'
+                ,'Booked-on date'
+                ,'Total price']] # focus on columns (Col) that we choose
+    all1 = all1.dropna()  # drop empty values
 
-                all1["Check-in"] = pd.to_datetime(all1["Check-in"])
-                all1['Booked-on date'] = pd.to_datetime(all1['Booked-on date'])
-                all1['Booked'] = all1['Booked-on date'].dt.strftime('%m/%d/%Y')
-                all1['Booked'] = pd.to_datetime(all1['Booked'])
-                all1["Check-out"] = pd.to_datetime(all1["Check-out"])
-                all1["Length of stay"] = (all1["Check-out"] - all1["Check-in"]).dt.days
-                all1["Lead time"] = (all1["Check-in"] - all1["Booked"]).dt.days
-                value_ranges = [-1, 0, 1, 2, 3, 4, 5, 6, 7,8, 14, 30, 90, 120]
-                value_ranges1 = [1,2,3, 4,5,6,7,8,9,10,14,30,45,60]
-                labels = ['-one', 'zero', 'one', 'two', 'three', 'four', 'five', 'six','seven', '8-14', '14-30', '31-90', '90-120', '120+']
-                labels1 = ['one', 'two', 'three', 'four', 'five', 'six','seven','eight', 'nine', 'ten', '14-30', '30-45','45-60', '60+']
-                all1['Lead time range'] = pd.cut(all1['Lead time'], bins=value_ranges + [float('inf')], labels=labels, right=False)
-                all1['LOS range'] = pd.cut(all1['Length of stay'], bins=value_ranges1 + [float('inf')], labels=labels1, right=False)
+    all1["Check-in"] = pd.to_datetime(all1["Check-in"]) # astype to datetime
+    all1['Booked-on date'] = pd.to_datetime(all1['Booked-on date']) 
+    all1['Booked'] = all1['Booked-on date'].dt.strftime('%m/%d/%Y') # extract just mm/dd/yyyy ( sting (str) type)
+    all1['Booked'] = pd.to_datetime(all1['Booked'])
+    all1["Check-out"] = pd.to_datetime(all1["Check-out"])
+    all1["Length of stay"] = (all1["Check-out"] - all1["Check-in"]).dt.days # cal LOS
+    all1["Lead time"] = (all1["Check-in"] - all1["Booked"]).dt.days # cal LT
+    LT1 = [-1, 0, 1, 2, 3, 4, 5, 6, 7,8, 14, 30, 90, 120] #grouping data
+    LT2 = ['-one', 'zero', 'one', 'two', 'three', 'four', 'five', 'six','seven', '8-14', '14-30', '31-90', '90-120', '120+']
+    LT11 = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,31,90, 120, float('inf')]
+    LT22 = ['.-1.', '.0.', '.1.', '.2.', '.3.', '.4.', '.5.', '.6.', '.7.', '.8.', '.9.', '.10.', '.11.', '.12.', '.13.', '.14.', '.15.', '.16.', '.17.', '.18.', '.19.', '.20.', '.21.', '.22.', '23.', '.24.', '25.', '.26.', '.27.', '.28.', '.29.', '.30.', '31-90.', '91-120', '120.+']
+    value_ranges1 = [1,2,3,4,5,6,7,8,9,10,14,30,45,60]
+    labels1 = ['one', 'two', 'three', 'four', 'five', 'six','seven','eight', 'nine', 'ten', '14-30', '30-45','45-60', '60+']
+    all1['Lead time range'] = pd.cut(all1['Lead time'], bins=LT1 + [float('inf')], labels=LT2, right=False)
+    all1['Lead time range1'] = pd.cut(all1['Lead time'], bins=LT11, labels=LT22, right=False)
+    all1['LOS range'] = pd.cut(all1['Length of stay'], bins=value_ranges1 + [float('inf')], labels=labels1, right=False)
 
-                all1['Room'] = all1['Room'].str.upper()
-                all1['Booking reference'] = all1['Booking reference'].astype('str')
-                all1['Total price'] = all['Total price'].str.strip('THB')
-                all1['Total price'] = all1['Total price'].astype('float64')
+    all1['Room'] = all1['Room'].str.upper() #convert to uppercase
+    all1['Booking reference'] = all1['Booking reference'].astype('str') # astype (datatype)
+    all1['Total price'] = all['Total price'].str.strip('THB') # 'THB 1500' to '1500'
+    all1['Total price'] = all1['Total price'].astype('float64') # astype
+    all1['Quantity'] = all1['Room'].str.extract('^(\d+)', expand=False).astype(int) # {'Room':'1 X deluxe'} to {'Room':'deluxe','Quantity':1}
+    all1['Room Type'] = all1['Room'].str.replace('-.*', '', regex=True) # '3 X DElUXE-NRF' to '3 X DELUXE'
+    all1['Room Type'] = all1['Room Type'].apply(lambda x: re.sub(r'^\d+\sX\s', '', x)) #'3 X DElUXE' to 'DELUXE'
+    all1['Room Type'] = all1['Room Type'].apply(clean_room_type) #apply with func
+    all1['Room Type'] = all1['Room Type'].apply(lambda x: convert_room_type(x))
+    all1['F/NRF'] = all1['Room'].apply(lambda x: convert_RF(x))
+    all1['RO/ABF'] = all1['Room'].apply(lambda x: convert_ABF(x))
+    all1['ADR'] = (all1['Total price']/all1['Length of stay'])/all1['Quantity'] # cal ADR
+    all1['ADR'] = all1.apply(lambda row: apply_discount(row['Channel'], row['ADR']), axis=1) #apply function by row
+    all1['RN'] = all1['Length of stay']*all1['Quantity']
+    all1['ADR'] = all1.apply(calculate_adr_per_rn_abf, axis=1)
 
-                all1['Quantity'] = all1['Room'].str.extract('^(\d+)', expand=False).astype(int)
-                all1['Room Type'] = all1['Room'].str.replace('-.*', '', regex=True)
-                all1['Room Type'] = all1['Room Type'].apply(lambda x: re.sub(r'^\d+\sX\s', '', x))
-                all1['Room Type'] = all1['Room Type'].apply(clean_room_type)
-                all1['Room Type'] = all1['Room Type'].apply(lambda x: convert_room_type(x))
-                all1['F/NRF'] = all1['Room'].apply(lambda x: convert_RF(x))
-                all1['RO/ABF'] = all1['Room'].apply(lambda x: convert_ABF(x))
-                all1['ADR'] = (all1['Total price']/all1['Length of stay'])/all1['Quantity']
-                all1['ADR'] = all1.apply(lambda row: apply_discount(row['Channel'], row['ADR']), axis=1)
-                all1['RN'] = all1['Length of stay']*all1['Quantity']
-                all1['ADR'] = all1.apply(calculate_adr_per_rn_abf, axis=1)
+    all2 = all1[['Booking reference'
+                ,'Guest names'
+                ,'Check-in'
+                ,'Check-out'
+                ,'Channel'
+                ,'Booked'
+                ,'Total price'
+                ,'ADR'
+                ,'Length of stay'
+                ,'Lead time'
+                ,'RN'
+                ,'Quantity'
+                ,'Room'
+                ,'Room Type'
+                ,'RO/ABF'
+                ,'F/NRF'
+                ,'Lead time range'
+                ,'Lead time range1'
+                ,'LOS range']]
+    return all2
 
-                all2 = all1[['Check-in'
-                            ,'Check-out'
-                            ,'Channel'
-                            ,'Booked-on date'
-                            ,'Total price'
-                            ,'ADR'
-                            ,'Length of stay'
-                            ,'Lead time'
-                            ,'RN'
-                            ,'Quantity'
-                            ,'Room'
-                            ,'Room Type'
-                            ,'RO/ABF'
-                            ,'F/NRF'
-                            ,'Lead time range'
-                            ,'LOS range']]
-                return all2
-
-
+# perform data
 all3 =  perform(all)
 filtered_df = all3
+# To find Stay
 filtered_df['Stay'] = filtered_df.apply(lambda row: pd.date_range(row['Check-in'], row['Check-out']- pd.Timedelta(days=1)), axis=1)
 filtered_df = filtered_df.explode('Stay').reset_index(drop=True)
 filtered_df = filtered_df[['Stay','Check-in','Check-out','Booked-on date','Channel','ADR','Length of stay','Lead time','Lead time range','RN','Quantity','Room Type','Room']]
 
-
+# Sorted Booked like LAST BOOKING
 filtered_df =  filtered_df.sort_values(by='Booked-on date')
 filtered_df['ADR'] = filtered_df['ADR'].apply('{:.2f}'.format)
 filtered_df['ADR'] = filtered_df['ADR'].astype('float')
 
+# find last 40 booking and identify RN
 stay_last20_dict = {}
 
 for stay, group in filtered_df.groupby('Stay'):
@@ -159,9 +174,10 @@ for stay, group in filtered_df.groupby('Stay'):
     last20_bookings = last20[['Stay','Booked-on date', 'ADR', 'Room Type', 'LAST RN']].values.tolist()
 
     stay_last20_dict[stay] = last20_bookings
-
+# convert to DataFrame
 df_stay_last20 = pd.concat([pd.DataFrame(bookings, columns=['Stay','Booked-on date', 'ADR', 'Room Type', 'LAST RN']) for bookings in stay_last20_dict.values()], ignore_index=True)
 
+# Grouping Roomtype
 ALL = df_stay_last20
 ALL['LAST RN'] = ALL['LAST RN'].astype(int)
 ALL['Month'] = pd.to_datetime(ALL['Stay']).dt.month
@@ -227,7 +243,7 @@ mean_by_month_and_rn5 = MIXED.groupby(['Month', 'LAST RN'])['ADR'].mean().reset_
 mean_by_month_and_rn5['ADR'] = mean_by_month_and_rn5['ADR'].apply('{:.2f}'.format)
 mean_by_month_and_rn5['ADR'] = mean_by_month_and_rn5['ADR'].astype('float')
 
-
+# line plot trend
 t1,t2,t3 = st.tabs(['line plot (Acual)','fitted line(40 RN)','fitted line(20 RN)'])
 with t1:
   fig = px.line(mean_by_month_and_rn, x='LAST RN', y='ADR',color='Month',text='ADR')
@@ -323,8 +339,10 @@ with t2:
           X = month_data[['LAST RN']]
           y = month_data['ADR']
           model = LinearRegression()
+          # To find Trend
           model.fit(X, y)
           y_pred = model.predict(X)
+          # and Plot
           fig.add_trace(go.Scatter(x=X['LAST RN'], y=y, mode='markers', name='Month {}'.format(month)))
           fig.add_trace(go.Scatter(x=X['LAST RN'], y=y_pred, mode='lines', name='Best-fit Line (Month {})'.format(month)))
       fig.update_layout(title='Linear Regression (NEW DELUXE TWIN)', xaxis_title='LAST RN', yaxis_title='ADR')
